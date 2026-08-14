@@ -34,7 +34,14 @@ sudo tailscale up          # if not already on the tailnet
 tmux attach -t claude-main # one-time: log in when prompted, then ctrl-b d
 ```
 
-From any other machine on the tailnet:
+From any other machine on the tailnet, one-time setup with
+`scripts/ssh-config-snippet.txt`, then just:
+
+```bash
+chome   # or: ssh claude-home
+```
+
+Without that setup, the manual equivalent is:
 
 ```bash
 ssh <user>@<tailscale-ip-or-magicdns-name> -t tmux attach -t claude-main

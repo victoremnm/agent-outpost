@@ -1,10 +1,20 @@
 # Append to ~/.ssh/config on any client machine (laptop, phone via Termius, etc.)
-# Replace Host alias / User / HostName as needed. HostName can be the Tailscale
-# MagicDNS name (tailscale status) or the 100.x.x.x IP -- both work over the tailnet.
+# Replace HostName / User with your own node's Tailscale IP/MagicDNS name and
+# SSH user. RemoteCommand + RequestTTY makes plain `ssh claude-home` drop you
+# straight into the watched tmux session -- no need to remember `tmux attach`.
+# `new-session -A` attaches if the session exists, or creates it if not, so
+# this never errors out even if the watchdog hasn't started it yet.
 
 Host claude-home
   HostName 0.0.0.0
   User vem
+  RequestTTY yes
+  RemoteCommand tmux new-session -A -s claude-main
 
-# Connect + attach in one shot:
-#   ssh -t claude-home tmux attach -t claude-main
+# Then add ONE of these to ~/.bashrc or ~/.zshrc for a one-word shortcut:
+
+alias chome="ssh claude-home"
+
+# Usage from anywhere, any shell:
+#   chome                # attach (or create) the always-on session
+#   ctrl-b then d         # detach without killing anything
