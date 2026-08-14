@@ -19,10 +19,14 @@ long-running session -- closing the lid or losing wifi doesn't kill anything.
 - `systemd/claude-watchdog@.service` -- template unit (`claude-watchdog@<user>.service`)
   that runs the watchdog under systemd with `Restart=always`, so it also
   survives a full host reboot once enabled.
-- `scripts/ssh-config-snippet.txt` -- `~/.ssh/config` block for quick
-  `ssh claude-home` access from any client on the tailnet.
+- `scripts/gen-ssh-config.sh` -- generates the `~/.ssh/config` block for
+  quick `ssh claude-home` access from any client on the tailnet, filled in
+  from your local `.env` (never committed).
 - `.claude/skills/homelab-bootstrap/` -- a Claude Code skill that walks
   through provisioning a new node from this repo end to end.
+- `.env.example` -- copy to `.env` and fill in your own node's Tailscale IP,
+  SSH user, and hostname. `.env` is gitignored -- real addresses never get
+  committed, which matters if this repo is ever public.
 
 ## Quick start on a new machine
 
@@ -34,17 +38,18 @@ sudo tailscale up          # if not already on the tailnet
 tmux attach -t claude-main # one-time: log in when prompted, then ctrl-b d
 ```
 
-From any other machine on the tailnet, one-time setup with
-`scripts/ssh-config-snippet.txt`, then just:
+From any other machine on the tailnet, one-time setup:
+
+```bash
+cp .env.example .env       # fill in this node's Tailscale IP + SSH user
+./scripts/gen-ssh-config.sh >> ~/.ssh/config
+echo 'alias chome="ssh claude-home"' >> ~/.zshrc   # or ~/.bashrc
+```
+
+Then, from anywhere on the tailnet, just:
 
 ```bash
 chome   # or: ssh claude-home
-```
-
-Without that setup, the manual equivalent is:
-
-```bash
-ssh <user>@<tailscale-ip-or-magicdns-name> -t tmux attach -t claude-main
 ```
 
 ## Auth model
@@ -69,6 +74,5 @@ Three layers, each catching a different failure:
 
 ## Known hosts
 
-| Host | Tailscale IP | Notes |
-|---|---|---|
-| ubuntu-s-2vcpu-4gb-sfo2-01 (DigitalOcean VPS) | 0.0.0.0 | Primary always-on node |
+Real hostnames and Tailscale IPs live in your local `.env` (gitignored), not
+here -- this file is committed and, eventually, public.

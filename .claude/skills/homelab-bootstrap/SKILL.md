@@ -36,9 +36,11 @@ a systemd service, reachable over Tailscale from any client.
 7. **Verify from a second client**: SSH in from a different machine (or the
    same one via a fresh connection) and confirm `tmux attach -t claude-main`
    reconnects to a live, already-logged-in session.
-8. **Update README.md's "Known hosts" table** in this repo with the new
-   node's hostname and Tailscale IP, commit on a feature branch, open a PR
-   (never push straight to main -- see user's global git conventions).
+8. **Never commit the new node's real hostname/IP.** Add it to the user's
+   local `.env` (gitignored) instead of any tracked file -- this repo is
+   intended to go public eventually. If a change to a tracked file is
+   needed, commit on a feature branch and open a PR as usual, but keep the
+   actual address out of it.
 
 ## Guardrails
 
