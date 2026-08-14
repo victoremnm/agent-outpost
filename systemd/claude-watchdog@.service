@@ -1,0 +1,16 @@
+[Unit]
+Description=Claude Code tmux watchdog
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Environment=CLAUDE_TMUX_SESSION=claude-main
+Environment=CLAUDE_WORKDIR=/home/%i/homelab
+ExecStart=/bin/bash /home/%i/homelab/scripts/claude-watchdog.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

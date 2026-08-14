@@ -1,0 +1,10 @@
+# Append to ~/.ssh/config on any client machine (laptop, phone via Termius, etc.)
+# Replace Host alias / User / HostName as needed. HostName can be the Tailscale
+# MagicDNS name (tailscale status) or the 100.x.x.x IP -- both work over the tailnet.
+
+Host claude-home
+  HostName 0.0.0.0
+  User vem
+
+# Connect + attach in one shot:
+#   ssh -t claude-home tmux attach -t claude-main
