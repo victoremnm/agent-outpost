@@ -54,7 +54,7 @@ fi
 
 if [[ ! -x "$CODEX_STANDALONE_ROOT/bin/codex" && ! -x "$CODEX_STANDALONE_ROOT/codex" ]]; then
   echo "==> Installing managed Codex CLI"
-  curl -fsSL https://chatgpt.com/codex/install.sh | sh
+  curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
 else
   echo "==> Managed Codex CLI already installed: $(codex --version 2>&1 || true)"
 fi
