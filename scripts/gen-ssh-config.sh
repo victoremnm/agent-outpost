@@ -5,7 +5,8 @@
 #
 # Usage:
 #   cp .env.example .env && edit it with your node's real values
-#   ./scripts/gen-ssh-config.sh >> ~/.ssh/config
+#   ./scripts/gen-ssh-config.sh claude >> ~/.ssh/config
+#   ./scripts/gen-ssh-config.sh codex >> ~/.ssh/config
 
 set -euo pipefail
 
@@ -23,7 +24,9 @@ set +a
 : "${HOMELAB_TAILSCALE_IP:?missing HOMELAB_TAILSCALE_IP in .env}"
 : "${HOMELAB_SSH_USER:?missing HOMELAB_SSH_USER in .env}"
 
-cat << EOF
+case "${1:-}" in
+  claude)
+    cat << EOF
 
 Host claude-home
   HostName ${HOMELAB_TAILSCALE_IP}
@@ -31,3 +34,17 @@ Host claude-home
   RequestTTY yes
   RemoteCommand tmux new-session -A -s claude-main
 EOF
+    ;;
+  codex)
+    cat << EOF
+
+Host codex-home
+  HostName ${HOMELAB_TAILSCALE_IP}
+  User ${HOMELAB_SSH_USER}
+EOF
+    ;;
+  *)
+    echo "Usage: $0 {claude|codex}" >&2
+    exit 1
+    ;;
+esac
