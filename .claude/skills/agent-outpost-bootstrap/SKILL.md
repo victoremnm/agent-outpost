@@ -1,9 +1,9 @@
 ---
-name: homelab-bootstrap
-description: Provision a new always-on Claude Code host (SBC or VPS) using the scripts in this repo -- tmux + Tailscale + systemd watchdog. Use when the user says "set up a new homelab node", "add another always-on Claude box", or "bootstrap this server for Claude Code".
+name: agent-outpost-bootstrap
+description: Provision a new always-on Claude Code host (SBC or VPS) using the scripts in this repo -- tmux + Tailscale + systemd watchdog. Use when the user says "set up a new agent-outpost node", "add another always-on Claude box", or "bootstrap this server for Claude Code".
 ---
 
-# homelab-bootstrap
+# agent-outpost-bootstrap
 
 Provisions a fresh Linux box into an always-on Claude Code host: a tmux
 session named `claude-main` running `claude`, watched by a loop, wrapped in

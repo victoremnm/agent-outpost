@@ -1,8 +1,14 @@
-# homelab
+# agent-outpost
 
 Always-on Claude Code, running headless in tmux on a box you own, reachable
 from any client over Tailscale. The laptop becomes a dummy terminal into a
 long-running session -- closing the lid or losing wifi doesn't kill anything.
+
+(Formerly named "homelab" -- renamed since this runs equally well on a
+cloud VPS as literal home hardware, and the old name implied otherwise.
+Deployed nodes still use `~/homelab` as their working directory internally,
+purely for path stability across existing and future setups -- that's an
+implementation detail, not a naming decision.)
 
 ```
 [client: laptop/phone] --ssh over Tailscale--> [server: tmux session] --> [claude, watched]
@@ -30,7 +36,7 @@ long-running session -- closing the lid or losing wifi doesn't kill anything.
 - `scripts/gen-ssh-config.sh` -- generates the `~/.ssh/config` block for
   quick `ssh claude-home` access from any client on the tailnet, filled in
   from your local `.env` (never committed).
-- `.claude/skills/homelab-bootstrap/` -- a Claude Code skill that walks
+- `.claude/skills/agent-outpost-bootstrap/` -- a Claude Code skill that walks
   through provisioning a new node from this repo end to end.
 - `.env.example` -- copy to `.env` and fill in your own node's Tailscale IP,
   SSH user, and hostname. `.env` is gitignored -- real addresses never get
@@ -42,8 +48,8 @@ From your laptop (not the node), with the node already reachable over SSH
 and Tailscale up on both ends:
 
 ```bash
-git clone <this repo> ~/Code/Repositories/homelab
-cd ~/Code/Repositories/homelab
+git clone <this repo> ~/Code/Repositories/agent-outpost
+cd ~/Code/Repositories/agent-outpost
 make env        # copies .env.example -> .env; fill in the node's real
                  # Tailscale IP + SSH user before continuing
 make setup       # ssh-config + push repo + bootstrap-node.sh + harden + terminfo

@@ -1,7 +1,7 @@
 .PHONY: help env ssh-config terminfo bootstrap harden status attach setup
 
 help:
-	@echo "homelab -- always-on Claude Code, orchestrated"
+	@echo "agent-outpost -- always-on Claude Code, orchestrated"
 	@echo ""
 	@echo "First time on a new node:"
 	@echo "  make setup        Do everything below, in order"

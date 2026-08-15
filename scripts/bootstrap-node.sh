@@ -5,7 +5,7 @@
 #
 # Usage: run this ON the target machine, as the user that will own the
 # tmux session (not root):
-#   curl -fsSL https://raw.githubusercontent.com/<you>/homelab/main/scripts/bootstrap-node.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/<you>/agent-outpost/main/scripts/bootstrap-node.sh | bash
 # or, cloned locally:
 #   ./scripts/bootstrap-node.sh
 
@@ -48,7 +48,7 @@ fi
 
 REPO_DIR="$HOME/homelab"
 if [[ ! -d "$REPO_DIR" ]]; then
-  echo "==> This script expects to run from inside a cloned homelab repo at $REPO_DIR"
+  echo "==> This script expects to run from inside a cloned copy of this repo at $REPO_DIR"
   echo "    (or copy scripts/claude-watchdog.sh + systemd/claude-watchdog@.service there yourself)"
 fi
 
