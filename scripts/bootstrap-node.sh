@@ -11,9 +11,11 @@
 
 set -euo pipefail
 
-# Codex's official installer places its binary here. systemd watchdogs set the
+# Codex's official installer places its launcher here. systemd watchdogs set the
 # same PATH explicitly because they do not source shell startup files.
 export PATH="$HOME/.local/bin:$PATH"
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone/current"
 
 if [[ "$EUID" -eq 0 ]]; then
   echo "Run this as your normal user, not root (sudo is invoked where needed)." >&2
@@ -50,11 +52,11 @@ else
   echo "==> Claude Code already installed: $(claude --version 2>&1 || true)"
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
-  echo "==> Installing Codex CLI"
+if [[ ! -x "$CODEX_STANDALONE_ROOT/bin/codex" && ! -x "$CODEX_STANDALONE_ROOT/codex" ]]; then
+  echo "==> Installing managed Codex CLI"
   curl -fsSL https://chatgpt.com/codex/install.sh | sh
 else
-  echo "==> Codex CLI already installed: $(codex --version 2>&1 || true)"
+  echo "==> Managed Codex CLI already installed: $(codex --version 2>&1 || true)"
 fi
 
 REPO_DIR="$HOME/homelab"
