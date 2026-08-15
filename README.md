@@ -12,7 +12,7 @@ purely for path stability across existing and future setups -- that's an
 implementation detail, not a naming decision.)
 
 ```
-[client: laptop/phone] --ssh over Tailscale--> [server: independently watched tmux sessions] --> [Claude | Codex | Hermes | Kimi | OpenCode | Agy]
+[client: laptop/phone] --ssh over Tailscale--> [router: at most two tmux sessions] --> [selected model]
 ```
 
 ## Components
@@ -21,28 +21,19 @@ implementation detail, not a naming decision.)
   for the full list, `make setup` to run it all in order on a new node).
 - `scripts/bootstrap-node.sh` -- idempotent setup for a fresh box: tmux,
   Tailscale, Node, Claude Code, Codex, Hermes, Kimi Code, OpenCode, and their
-  watchdog systemd services. Agy is enabled when its native Linux CLI is
-  present; Ollama is deliberately installed separately and never downloads a
-  model automatically.
+  router service. Agy is selectable when its native Linux CLI is present;
+  Ollama is deliberately installed separately and never downloads a model
+  automatically.
 - `scripts/harden-ssh-tailscale.sh` -- locks the node's SSH down to
   Tailscale-only, with an automatic self-revert if you don't confirm it
   worked within 2 minutes (see "Security" below).
 - `scripts/install-client-terminfo.sh` -- pushes your terminal's terminfo
   entry to the node, fixing `missing or unsuitable terminal` errors with
   newer terminal emulators (Ghostty, WezTerm, kitty).
-- `scripts/claude-watchdog.sh` -- the loop that keeps a tmux session named
-  `claude-main` alive with `claude` running inside it. If `claude` exits or
-  crashes, it restarts in the same pane within 3s. If the whole tmux server
-  dies, the loop recreates the session within 10s.
-- `systemd/claude-watchdog@.service` -- template unit (`claude-watchdog@<user>.service`)
-  that runs the watchdog under systemd with `Restart=always`, so it also
-  survives a full host reboot once enabled.
-- `scripts/codex-watchdog.sh` and `systemd/codex-watchdog@.service` -- the
-  equivalent independently watched `codex-main` session. Codex's app-server
-  daemon is managed by Codex, not by this tmux watchdog.
-- `scripts/agent-watchdog.sh` and the Hermes, Kimi, OpenCode, and Agy systemd
-  units -- one isolated `*-main` tmux session per CLI, with the same restart
-  guarantees as Claude and Codex.
+- `scripts/agent-router.sh` and `systemd/agent-router@.service` -- keep the
+  selected interactive sessions alive, enforce a maximum of two live agents,
+  and advance an exhausted agent to the next available provider. Pane history
+  is saved before a router-initiated switch.
 - `scripts/install-ollama.sh` -- an explicit Ollama-server install. It starts
   no model and does not change model storage until you request a model.
 - `scripts/gen-ssh-config.sh` -- generates the `~/.ssh/config` block for
@@ -83,17 +74,14 @@ substantially higher capacity needed to run local Ollama models.
 Already set up and just want to connect?
 
 ```bash
-make attach         # Claude, or `chome` after `make ssh-config` + `source ~/.zshrc`
-make attach-codex   # Codex, or `cohome`
-make attach-hermes  # Hermes
-make attach-kimi    # Kimi Code
-make attach-opencode # OpenCode
-make connect-deepseek # OpenCode's DeepSeek provider flow
+make route-status               # see current and active routes
+make attach                     # attach to the current route
+make route-use AGENT=codex      # add/select Codex (max. two remain live)
 ```
 
 ## Auth model
 
-The watchdog runs `claude` with no `ANTHROPIC_API_KEY` set, so it uses
+The router runs `claude` with no `ANTHROPIC_API_KEY` set, so it uses
 interactive OAuth login (your Claude subscription, not API billing). Do the
 login once per box, inside the tmux pane -- the resulting token persists in
 `~/.claude/` and auto-refreshes. If you'd rather bill per-token via the API
@@ -112,29 +100,51 @@ API keys onto the node. Store any new provider credentials in 1Password before
 placing them in the node's environment. Agy follows the same pattern once its
 vendor-provided x86_64 Linux launcher is installed at `~/.local/bin/agy`.
 
-DeepSeek is available in OpenCode as a built-in provider rather than as a
-separate watchdog-managed CLI. After OpenCode is installed, run
-`make connect-deepseek`; in the OpenCode UI, use `/connect` to select
-**DeepSeek**, complete its key prompt, then use `/models` to select the model.
-Create and store a new key in 1Password before entering it there; the key is
-kept in the node user's OpenCode credential store, never in this repository.
+DeepSeek is an OpenCode-backed route rather than a second heavyweight CLI.
+Run `make connect-deepseek`, use `/connect` to select **DeepSeek**, and use
+`/models` to find its `provider/model` ID. Create and store a new key in
+1Password before entering it there; the key remains in the node user's
+OpenCode credential store, never in this repository.
 
-## Switch agents and use ChatGPT Remote
+## Route agents and use ChatGPT Remote
 
-Claude and Codex run independently. If one harness is unavailable or you want
-to try the other agent, attach to the matching session:
+The router keeps **one or two** agents live, never every installed CLI. Its
+default fallback order is:
 
 ```bash
-make attach         # Claude (`chome`)
-make attach-codex   # Codex (`cohome`)
-make attach-hermes  # Hermes
-make attach-kimi    # Kimi Code
-make attach-opencode # OpenCode
-make attach-agy     # Agy, after its native Linux CLI is installed
-make connect-deepseek # OpenCode's DeepSeek provider
+claude -> codex -> opencode -> agy -> kimi -> deepseek
 ```
 
-### Use the models together, safely
+Hermes is deliberately outside that automatic route but remains selectable
+with `make route-use AGENT=hermes`.
+
+```bash
+make route-status
+make route-use AGENT=codex       # select Codex; with two live sessions, evicts the oldest
+make route-fallback AGENT=codex  # force Codex -> OpenCode
+make route-stop AGENT=opencode   # stop a route and free its slot
+make attach                      # always attaches to the router's current route
+```
+
+The router checks active panes for specific quota/rate-limit errors every five
+seconds and automatically applies the same fallback. It saves the last 500
+lines of the exhausted pane to `~/.agent-outpost/router/handoff-*.log` before
+stopping it. Use `make route-fallback AGENT=<agent>` if a provider shows a
+quota message the CLI renders in a form the router cannot recognize.
+
+There is no safe way for one vendor CLI to inherit another CLI's full live
+conversation or tool state. Treat the saved handoff as the bridge: attach to
+the new route and give it the relevant summary or task. The router does
+preserve the original CLI's own persisted session for later resumption.
+
+To make DeepSeek eligible for automatic fallback after completing its OpenCode
+login, set the model ID you selected:
+
+```bash
+make route-configure-deepseek MODEL=<provider/model>
+```
+
+### Use the models safely
 
 The harness keeps each session alive, but it does **not** make concurrent edits
 to one checkout safe. Give one agent ownership of implementation at a time;
@@ -144,11 +154,10 @@ worktree.
 
 | Session | Good role |
 | --- | --- |
-| `claude-main`, `codex-main` | Primary implementation and issue recovery |
-| `hermes-main`, `kimi-main` | Independent planning, exploration, and review |
-| `opencode-main` | Provider-agnostic alternate coding workflow |
-| DeepSeek in `opencode-main` | DeepSeek coding/reasoning models via `/connect` and `/models` |
-| `agy-main` | Your configured Agy model pool, after installing its Linux CLI |
+| `claude-main`, `codex-main` | Highest-priority implementation and recovery |
+| `opencode-main`, `agy-main`, `kimi-main` | Ordered fallbacks |
+| `deepseek-main` | OpenCode with your configured DeepSeek model |
+| `hermes-main` | Explicitly selected, outside the automatic order |
 | Ollama + OpenCode | Private/local or self-hosted models, when the host has enough RAM |
 
 Ollama is intentionally a separate opt-in because model files and runtime RAM
@@ -181,18 +190,17 @@ the mobile app.
 
 ## Restart guarantees
 
-Three layers, each catching a different failure:
+The router has three layers of recovery:
 
-1. Inner `while true; do claude; done` loop -- `claude` process crashes or
-   exits -> restarts in the same tmux pane in 3s.
-2. Watchdog's outer loop -- the tmux server itself dies -> session recreated
-   within 10s.
-3. `systemd` `Restart=always` + `enable` -- the watchdog script itself dies,
-   or the host reboots -> service comes back automatically.
+1. Each selected session has an inner restart loop: a CLI process crash or
+   exit restarts it in the same pane within 3 seconds.
+2. The router monitor recreates a selected tmux session within 5 seconds if
+   the tmux server or session dies.
+3. `systemd` `Restart=always` + `enable` brings the router back after a host
+   reboot or router process failure.
 
-The same three layers apply independently to Codex, Hermes, Kimi, OpenCode,
-and (once installed) Agy. The Codex remote-control app-server uses Codex's own
-durable manager and is deliberately separate from the interactive tmux session.
+The Codex remote-control app-server uses Codex's own durable manager and is
+deliberately separate from the router's interactive Codex session.
 
 ## Known hosts
 

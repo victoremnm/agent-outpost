@@ -1,15 +1,13 @@
 [Unit]
-Description=OpenCode CLI tmux watchdog
+Description=Agent Outpost router
 After=network-online.target tailscaled.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=%i
-Environment=AGENT_NAME=opencode
-Environment=AGENT_TMUX_SESSION=opencode-main
 Environment=AGENT_WORKDIR=/home/%i/homelab
-ExecStart=/bin/bash /home/%i/homelab/scripts/agent-watchdog.sh
+ExecStart=/bin/bash /home/%i/homelab/scripts/agent-router.sh monitor
 Restart=always
 RestartSec=5
 

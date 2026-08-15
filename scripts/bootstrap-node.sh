@@ -23,9 +23,9 @@ if [[ "$EUID" -eq 0 ]]; then
   exit 1
 fi
 
-echo "==> Installing tmux, curl"
+echo "==> Installing tmux, curl, util-linux"
 sudo apt-get update -y
-sudo apt-get install -y tmux curl
+sudo apt-get install -y tmux curl util-linux
 
 if ! command -v tailscale >/dev/null 2>&1; then
   echo "==> Installing Tailscale"
@@ -68,6 +68,7 @@ install_user_cli() {
   if command -v "$command_name" >/dev/null 2>&1; then
     echo "==> $label already installed: $($command_name --version 2>&1 || true)"
   else
+    require_install_headroom
     echo "==> Installing $label"
     curl -fsSL "$installer_url" | bash
   fi
@@ -88,9 +89,8 @@ require_install_headroom() {
   fi
 }
 
-require_install_headroom
 install_user_cli hermes "Hermes" "https://hermes-agent.nousresearch.com/install.sh"
-install_user_cli kimi "Kimi Code" "https://code.kimi.com/kimi-code/install.sh"
+install_user_cli kimi "Kimi Code" "https://code.kimi.com/install.sh"
 install_user_cli opencode "OpenCode" "https://opencode.ai/install"
 
 # Agy does not publish a Linux installer we can safely automate. Do not copy a
@@ -108,38 +108,24 @@ if [[ ! -d "$REPO_DIR" ]]; then
   echo "    (or copy scripts/claude-watchdog.sh + systemd/claude-watchdog@.service there yourself)"
 fi
 
-echo "==> Installing systemd units"
-sudo cp "$(dirname "$0")/../systemd/claude-watchdog@.service" /etc/systemd/system/
-sudo cp "$(dirname "$0")/../systemd/codex-watchdog@.service" /etc/systemd/system/
-for agent in agy hermes kimi opencode; do
-  sudo cp "$(dirname "$0")/../systemd/${agent}-watchdog@.service" /etc/systemd/system/
-done
+echo "==> Installing router service"
+sudo cp "$(dirname "$0")/../systemd/agent-router@.service" /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now "claude-watchdog@${USER}.service"
-sudo systemctl enable --now "codex-watchdog@${USER}.service"
-for agent in agy hermes kimi opencode; do
-  if command -v "$agent" >/dev/null 2>&1; then
-    sudo systemctl enable --now "${agent}-watchdog@${USER}.service"
-  else
-    echo "==> Skipping ${agent} watchdog: CLI is not installed"
-  fi
+for agent in claude codex agy hermes kimi opencode; do
+  sudo systemctl disable --now "${agent}-watchdog@${USER}.service" 2>/dev/null || true
 done
+sudo systemctl enable --now "agent-router@${USER}.service"
 
 echo "==> Done. Status:"
-sudo systemctl status "claude-watchdog@${USER}.service" --no-pager || true
-sudo systemctl status "codex-watchdog@${USER}.service" --no-pager || true
-for agent in agy hermes kimi opencode; do
-  sudo systemctl status "${agent}-watchdog@${USER}.service" --no-pager || true
-done
+sudo systemctl status "agent-router@${USER}.service" --no-pager || true
 
 echo ""
 echo "Next step (one-time, interactive):"
-echo "  tmux attach -t claude-main  # sign in to Claude, then ctrl-b d to detach"
-echo "  tmux attach -t codex-main   # sign in to ChatGPT in Codex, then ctrl-b d"
-echo "  tmux attach -t hermes-main  # finish Hermes setup/login, then ctrl-b d"
-echo "  tmux attach -t kimi-main    # finish Kimi device login, then ctrl-b d"
-echo "  tmux attach -t opencode-main # choose and sign in to an OpenCode provider"
-echo "  # Agy starts automatically after its native Linux CLI is installed."
+echo "  make route-status            # see the active route (starts with Claude)"
+echo "  make route-use AGENT=codex   # select an agent; router keeps at most two live"
+echo "  make route-fallback AGENT=claude # manually advance after a quota message"
+echo "  make attach                  # connect to the router's current session"
+echo "  # Agy becomes selectable after its native Linux CLI is installed."
 echo "  # Ollama is opt-in: run make ollama-install on your client; it never pulls a model."
 echo "  # Back on your client, run: make remote-control"
 echo "  # This enables Codex's durable SSH app-server with remote control."
