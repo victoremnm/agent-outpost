@@ -1,9 +1,9 @@
 # agent-outpost
 
-Always-on Claude Code and Codex CLI, running headless in separate tmux sessions
-on a box you own, reachable from any client over Tailscale. The laptop becomes a
-dummy terminal into a long-running session -- closing the lid or losing wifi
-doesn't kill anything.
+Always-on AI coding CLIs, running headless in separate tmux sessions on a box
+you own, reachable from any client over Tailscale. The laptop becomes a dummy
+terminal into a long-running session -- closing the lid or losing wifi doesn't
+kill anything.
 
 (Formerly named "homelab" -- renamed since this runs equally well on a
 cloud VPS as literal home hardware, and the old name implied otherwise.
@@ -12,7 +12,7 @@ purely for path stability across existing and future setups -- that's an
 implementation detail, not a naming decision.)
 
 ```
-[client: laptop/phone] --ssh over Tailscale--> [server: tmux sessions] --> [claude | codex, watched]
+[client: laptop/phone] --ssh over Tailscale--> [server: independently watched tmux sessions] --> [Claude | Codex | Hermes | Kimi | OpenCode | Agy]
 ```
 
 ## Components
@@ -20,7 +20,10 @@ implementation detail, not a naming decision.)
 - `Makefile` -- orchestrates everything below from your laptop (`make help`
   for the full list, `make setup` to run it all in order on a new node).
 - `scripts/bootstrap-node.sh` -- idempotent setup for a fresh box: tmux,
-  Tailscale, Node, Claude Code CLI, Codex CLI, and watchdog systemd services.
+  Tailscale, Node, Claude Code, Codex, Hermes, Kimi Code, OpenCode, and their
+  watchdog systemd services. Agy is enabled when its native Linux CLI is
+  present; Ollama is deliberately installed separately and never downloads a
+  model automatically.
 - `scripts/harden-ssh-tailscale.sh` -- locks the node's SSH down to
   Tailscale-only, with an automatic self-revert if you don't confirm it
   worked within 2 minutes (see "Security" below).
@@ -37,6 +40,11 @@ implementation detail, not a naming decision.)
 - `scripts/codex-watchdog.sh` and `systemd/codex-watchdog@.service` -- the
   equivalent independently watched `codex-main` session. Codex's app-server
   daemon is managed by Codex, not by this tmux watchdog.
+- `scripts/agent-watchdog.sh` and the Hermes, Kimi, OpenCode, and Agy systemd
+  units -- one isolated `*-main` tmux session per CLI, with the same restart
+  guarantees as Claude and Codex.
+- `scripts/install-ollama.sh` -- an explicit Ollama-server install. It starts
+  no model and does not change model storage until you request a model.
 - `scripts/gen-ssh-config.sh` -- generates the `~/.ssh/config` block for
   quick `ssh claude-home` access from any client on the tailnet, filled in
   from your local `.env` (never committed).
@@ -71,6 +79,10 @@ Already set up and just want to connect?
 ```bash
 make attach         # Claude, or `chome` after `make ssh-config` + `source ~/.zshrc`
 make attach-codex   # Codex, or `cohome`
+make attach-hermes  # Hermes
+make attach-kimi    # Kimi Code
+make attach-opencode # OpenCode
+make connect-deepseek # OpenCode's DeepSeek provider flow
 ```
 
 ## Auth model
@@ -87,6 +99,20 @@ Codex is also installed without `OPENAI_API_KEY`. Sign in once inside the
 access included with your ChatGPT plan rather than usage-based API billing.
 Do not add an API key unless you intentionally want API-priced usage.
 
+Hermes, Kimi Code, and OpenCode similarly keep their provider login state in
+the node user's home directory. Attach to each newly created session once and
+complete the CLI's own sign-in/setup flow; do not copy local config folders or
+API keys onto the node. Store any new provider credentials in 1Password before
+placing them in the node's environment. Agy follows the same pattern once its
+vendor-provided x86_64 Linux launcher is installed at `~/.local/bin/agy`.
+
+DeepSeek is available in OpenCode as a built-in provider rather than as a
+separate watchdog-managed CLI. After OpenCode is installed, run
+`make connect-deepseek`; in the OpenCode UI, use `/connect` to select
+**DeepSeek**, complete its key prompt, then use `/models` to select the model.
+Create and store a new key in 1Password before entering it there; the key is
+kept in the node user's OpenCode credential store, never in this repository.
+
 ## Switch agents and use ChatGPT Remote
 
 Claude and Codex run independently. If one harness is unavailable or you want
@@ -95,7 +121,42 @@ to try the other agent, attach to the matching session:
 ```bash
 make attach         # Claude (`chome`)
 make attach-codex   # Codex (`cohome`)
+make attach-hermes  # Hermes
+make attach-kimi    # Kimi Code
+make attach-opencode # OpenCode
+make attach-agy     # Agy, after its native Linux CLI is installed
+make connect-deepseek # OpenCode's DeepSeek provider
 ```
+
+### Use the models together, safely
+
+The harness keeps each session alive, but it does **not** make concurrent edits
+to one checkout safe. Give one agent ownership of implementation at a time;
+use the others for planning, research, tests, or review. For parallel coding,
+create a separate git worktree per agent and start that agent from its own
+worktree.
+
+| Session | Good role |
+| --- | --- |
+| `claude-main`, `codex-main` | Primary implementation and issue recovery |
+| `hermes-main`, `kimi-main` | Independent planning, exploration, and review |
+| `opencode-main` | Provider-agnostic alternate coding workflow |
+| DeepSeek in `opencode-main` | DeepSeek coding/reasoning models via `/connect` and `/models` |
+| `agy-main` | Your configured Agy model pool, after installing its Linux CLI |
+| Ollama + OpenCode | Private/local or self-hosted models, when the host has enough RAM |
+
+Ollama is intentionally a separate opt-in because model files and runtime RAM
+are substantial. On the current 4 GB outpost node, do not pull a model until
+you have increased capacity or pointed OpenCode at a stronger Ollama host:
+
+```bash
+make ollama-install                 # installs the server only
+make ollama-status                  # verifies service and lists local models
+make ollama-pull MODEL=<model-name> # explicit model download
+```
+
+OpenCode can then be configured through its provider flow, including an Ollama
+endpoint. No model is selected or downloaded by this repository.
 
 After signing in to Codex once, enable its durable SSH app-server with remote
 control:
@@ -123,9 +184,9 @@ Three layers, each catching a different failure:
 3. `systemd` `Restart=always` + `enable` -- the watchdog script itself dies,
    or the host reboots -> service comes back automatically.
 
-The same three layers apply independently to Codex. The Codex remote-control
-app-server uses Codex's own durable manager and is deliberately separate from
-the interactive tmux session.
+The same three layers apply independently to Codex, Hermes, Kimi, OpenCode,
+and (once installed) Agy. The Codex remote-control app-server uses Codex's own
+durable manager and is deliberately separate from the interactive tmux session.
 
 ## Known hosts
 

@@ -11,9 +11,10 @@
 
 set -euo pipefail
 
-# Codex's official installer places its launcher here. systemd watchdogs set the
-# same PATH explicitly because they do not source shell startup files.
-export PATH="$HOME/.local/bin:$PATH"
+# User-scoped agent installers place their launchers in these locations.
+# systemd watchdogs set the same PATH explicitly because they do not source
+# shell startup files.
+export PATH="$HOME/.local/bin:$HOME/.kimi-code/bin:$HOME/.opencode/bin:$HOME/.hermes/hermes-agent/venv/bin:$PATH"
 CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
 CODEX_STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone/current"
 
@@ -59,27 +60,71 @@ else
   echo "==> Managed Codex CLI already installed: $(codex --version 2>&1 || true)"
 fi
 
+install_user_cli() {
+  local command_name="$1"
+  local label="$2"
+  local installer_url="$3"
+
+  if command -v "$command_name" >/dev/null 2>&1; then
+    echo "==> $label already installed: $($command_name --version 2>&1 || true)"
+  else
+    echo "==> Installing $label"
+    curl -fsSL "$installer_url" | bash
+  fi
+}
+
+install_user_cli hermes "Hermes" "https://hermes-agent.nousresearch.com/install.sh"
+install_user_cli kimi "Kimi Code" "https://code.kimi.com/kimi-code/install.sh"
+install_user_cli opencode "OpenCode" "https://opencode.ai/install"
+
+# Agy does not publish a Linux installer we can safely automate. Do not copy a
+# macOS binary to this x86_64 node; install the vendor's native Linux release at
+# ~/.local/bin/agy, then re-run bootstrap to enable its watchdog.
+if command -v agy >/dev/null 2>&1; then
+  echo "==> Agy already installed: $(agy --version 2>&1 || true)"
+else
+  echo "==> Agy not installed; add its native Linux launcher to ~/.local/bin/agy, then re-run bootstrap"
+fi
+
 REPO_DIR="$HOME/homelab"
 if [[ ! -d "$REPO_DIR" ]]; then
   echo "==> This script expects to run from inside a cloned copy of this repo at $REPO_DIR"
   echo "    (or copy scripts/claude-watchdog.sh + systemd/claude-watchdog@.service there yourself)"
 fi
 
-echo "==> Installing systemd unit"
+echo "==> Installing systemd units"
 sudo cp "$(dirname "$0")/../systemd/claude-watchdog@.service" /etc/systemd/system/
 sudo cp "$(dirname "$0")/../systemd/codex-watchdog@.service" /etc/systemd/system/
+for agent in agy hermes kimi opencode; do
+  sudo cp "$(dirname "$0")/../systemd/${agent}-watchdog@.service" /etc/systemd/system/
+done
 sudo systemctl daemon-reload
 sudo systemctl enable --now "claude-watchdog@${USER}.service"
 sudo systemctl enable --now "codex-watchdog@${USER}.service"
+for agent in agy hermes kimi opencode; do
+  if command -v "$agent" >/dev/null 2>&1; then
+    sudo systemctl enable --now "${agent}-watchdog@${USER}.service"
+  else
+    echo "==> Skipping ${agent} watchdog: CLI is not installed"
+  fi
+done
 
 echo "==> Done. Status:"
 sudo systemctl status "claude-watchdog@${USER}.service" --no-pager || true
 sudo systemctl status "codex-watchdog@${USER}.service" --no-pager || true
+for agent in agy hermes kimi opencode; do
+  sudo systemctl status "${agent}-watchdog@${USER}.service" --no-pager || true
+done
 
 echo ""
 echo "Next step (one-time, interactive):"
 echo "  tmux attach -t claude-main  # sign in to Claude, then ctrl-b d to detach"
 echo "  tmux attach -t codex-main   # sign in to ChatGPT in Codex, then ctrl-b d"
+echo "  tmux attach -t hermes-main  # finish Hermes setup/login, then ctrl-b d"
+echo "  tmux attach -t kimi-main    # finish Kimi device login, then ctrl-b d"
+echo "  tmux attach -t opencode-main # choose and sign in to an OpenCode provider"
+echo "  # Agy starts automatically after its native Linux CLI is installed."
+echo "  # Ollama is opt-in: run make ollama-install on your client; it never pulls a model."
 echo "  # Back on your client, run: make remote-control"
 echo "  # This enables Codex's durable SSH app-server with remote control."
 echo "  # ctrl-b d to detach -- the session keeps running"
