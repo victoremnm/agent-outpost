@@ -68,13 +68,16 @@ install_user_cli() {
   if command -v "$command_name" >/dev/null 2>&1; then
     echo "==> $label already installed: $($command_name --version 2>&1 || true)"
   else
-    require_install_headroom
+    if ! has_install_headroom; then
+      echo "==> Skipping $label for now"
+      return 0
+    fi
     echo "==> Installing $label"
     curl -fsSL "$installer_url" | bash
   fi
 }
 
-require_install_headroom() {
+has_install_headroom() {
   local available_kib
   available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
 
@@ -84,8 +87,8 @@ require_install_headroom() {
   # runtime recommendation.
   if [[ -z "$available_kib" || "$available_kib" -lt 1048576 ]]; then
     echo "==> Need at least 1 GiB of available RAM before installing additional agent CLIs." >&2
-    echo "    Free memory or resize the node, then re-run make bootstrap." >&2
-    exit 1
+    echo "    Deferring this CLI; free memory or resize the node, then re-run make bootstrap." >&2
+    return 1
   fi
 }
 

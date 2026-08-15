@@ -65,11 +65,12 @@ one-time interactive Claude Code OAuth login (`make attach`, then follow the
 prompt, then `ctrl-b d` to detach) and confirming the SSH hardening within
 its revert window (see "Security" below).
 
-Before it installs the additional agent CLIs, bootstrap requires at least
-1 GiB of currently available RAM. This prevents a dependency install from
-overcommitting a busy node and dropping its SSH connection. Free memory or
-resize the node first if it stops at that guard; this is separate from the
-substantially higher capacity needed to run local Ollama models.
+Before it installs each missing additional agent CLI, bootstrap requires at
+least 1 GiB of currently available RAM. This prevents a dependency install
+from overcommitting a busy node and dropping its SSH connection. When there is
+less headroom, bootstrap still installs the router and defers only that CLI;
+free memory or resize the node and rerun bootstrap later. This is separate
+from the substantially higher capacity needed to run local Ollama models.
 
 Already set up and just want to connect?
 
