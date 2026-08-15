@@ -1,0 +1,16 @@
+[Unit]
+Description=Codex CLI tmux watchdog
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Environment=CODEX_TMUX_SESSION=codex-main
+Environment=CODEX_WORKDIR=/home/%i/homelab
+ExecStart=/bin/bash /home/%i/homelab/scripts/codex-watchdog.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

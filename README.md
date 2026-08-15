@@ -1,8 +1,9 @@
 # agent-outpost
 
-Always-on Claude Code, running headless in tmux on a box you own, reachable
-from any client over Tailscale. The laptop becomes a dummy terminal into a
-long-running session -- closing the lid or losing wifi doesn't kill anything.
+Always-on Claude Code and Codex CLI, running headless in separate tmux sessions
+on a box you own, reachable from any client over Tailscale. The laptop becomes a
+dummy terminal into a long-running session -- closing the lid or losing wifi
+doesn't kill anything.
 
 (Formerly named "homelab" -- renamed since this runs equally well on a
 cloud VPS as literal home hardware, and the old name implied otherwise.
@@ -11,7 +12,7 @@ purely for path stability across existing and future setups -- that's an
 implementation detail, not a naming decision.)
 
 ```
-[client: laptop/phone] --ssh over Tailscale--> [server: tmux session] --> [claude, watched]
+[client: laptop/phone] --ssh over Tailscale--> [server: tmux sessions] --> [claude | codex, watched]
 ```
 
 ## Components
@@ -19,7 +20,7 @@ implementation detail, not a naming decision.)
 - `Makefile` -- orchestrates everything below from your laptop (`make help`
   for the full list, `make setup` to run it all in order on a new node).
 - `scripts/bootstrap-node.sh` -- idempotent setup for a fresh box: tmux,
-  Tailscale, Node, Claude Code CLI, and the watchdog systemd service.
+  Tailscale, Node, Claude Code CLI, Codex CLI, and watchdog systemd services.
 - `scripts/harden-ssh-tailscale.sh` -- locks the node's SSH down to
   Tailscale-only, with an automatic self-revert if you don't confirm it
   worked within 2 minutes (see "Security" below).
@@ -33,6 +34,9 @@ implementation detail, not a naming decision.)
 - `systemd/claude-watchdog@.service` -- template unit (`claude-watchdog@<user>.service`)
   that runs the watchdog under systemd with `Restart=always`, so it also
   survives a full host reboot once enabled.
+- `scripts/codex-watchdog.sh` and `systemd/codex-watchdog@.service` -- the
+  equivalent independently watched `codex-main` session. Codex's app-server
+  daemon is managed by Codex, not by this tmux watchdog.
 - `scripts/gen-ssh-config.sh` -- generates the `~/.ssh/config` block for
   quick `ssh claude-home` access from any client on the tailnet, filled in
   from your local `.env` (never committed).
@@ -65,7 +69,8 @@ its revert window (see "Security" below).
 Already set up and just want to connect?
 
 ```bash
-make attach   # or, after `make ssh-config` + `source ~/.zshrc`: chome
+make attach         # Claude, or `chome` after `make ssh-config` + `source ~/.zshrc`
+make attach-codex   # Codex, or `cohome`
 ```
 
 ## Auth model
@@ -77,6 +82,36 @@ login once per box, inside the tmux pane -- the resulting token persists in
 instead, export `ANTHROPIC_API_KEY` in the systemd unit's `Environment=` line
 and skip the interactive login.
 
+Codex is also installed without `OPENAI_API_KEY`. Sign in once inside the
+`codex-main` tmux pane using **Sign in with ChatGPT**; that uses the Codex
+access included with your ChatGPT plan rather than usage-based API billing.
+Do not add an API key unless you intentionally want API-priced usage.
+
+## Switch agents and use ChatGPT Remote
+
+Claude and Codex run independently. If one harness is unavailable or you want
+to try the other agent, attach to the matching session:
+
+```bash
+make attach         # Claude (`chome`)
+make attach-codex   # Codex (`cohome`)
+```
+
+After signing in to Codex once, enable its durable SSH app-server with remote
+control:
+
+```bash
+make remote-control
+```
+
+To receive and steer Codex work in the ChatGPT mobile app, use the official
+Remote flow: on a Mac or Windows machine with the ChatGPT desktop app, add
+`codex-home` from `~/.ssh/config` in **Settings > Connections**, select a
+project on the node, then pair that desktop host with the ChatGPT mobile app.
+The desktop app starts and manages the remote Codex app-server over SSH; no
+port is opened on the node. Keep that desktop host awake and online while using
+the mobile app.
+
 ## Restart guarantees
 
 Three layers, each catching a different failure:
@@ -87,6 +122,10 @@ Three layers, each catching a different failure:
    within 10s.
 3. `systemd` `Restart=always` + `enable` -- the watchdog script itself dies,
    or the host reboots -> service comes back automatically.
+
+The same three layers apply independently to Codex. The Codex remote-control
+app-server uses Codex's own durable manager and is deliberately separate from
+the interactive tmux session.
 
 ## Known hosts
 
