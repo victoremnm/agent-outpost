@@ -73,6 +73,22 @@ install_user_cli() {
   fi
 }
 
+require_install_headroom() {
+  local available_kib
+  available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
+
+  # Hermes' optional browser tools run npm during installation. Leave enough
+  # room for that resolver instead of competing with existing workloads until
+  # SSH becomes unresponsive. This is installation headroom, not an Ollama
+  # runtime recommendation.
+  if [[ -z "$available_kib" || "$available_kib" -lt 1048576 ]]; then
+    echo "==> Need at least 1 GiB of available RAM before installing additional agent CLIs." >&2
+    echo "    Free memory or resize the node, then re-run make bootstrap." >&2
+    exit 1
+  fi
+}
+
+require_install_headroom
 install_user_cli hermes "Hermes" "https://hermes-agent.nousresearch.com/install.sh"
 install_user_cli kimi "Kimi Code" "https://code.kimi.com/kimi-code/install.sh"
 install_user_cli opencode "OpenCode" "https://opencode.ai/install"
