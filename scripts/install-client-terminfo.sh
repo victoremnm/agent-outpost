@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./scripts/install-client-terminfo.sh claude-home
-#   ./scripts/install-client-terminfo.sh vem@0.0.0.0
+#   ./scripts/install-client-terminfo.sh youruser@100.x.x.x
 
 set -euo pipefail
 
