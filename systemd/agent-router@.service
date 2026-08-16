@@ -1,0 +1,15 @@
+[Unit]
+Description=Agent Outpost router
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Environment=AGENT_WORKDIR=/home/%i/homelab
+ExecStart=/bin/bash /home/%i/homelab/scripts/agent-router.sh monitor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
